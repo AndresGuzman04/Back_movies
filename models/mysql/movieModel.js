@@ -11,43 +11,39 @@ const config = {
 const connection = await  mysql.createConnection(config)
 
 export class MovieModel {
-  static async getAll ({ genre }) {
-
+  static async getAll({ genre }) {
+    let genreCondition = "";
+    let genreParams = [];
+  
     if (genre) {
-      const lowerCaseGenre = genre.toLowerCase()
-      
-      const [genres] = await connection.query('SELECT id, name FROM genre WHERE LOWER(name) = ?', [lowerCaseGenre])
-
-      // no genre found
-      if (genres.length === 0) return []
-
-      //get th id from the first genre result
-      const [{ id }] = genres
-
-      // get all movies ids from database table
-      const [movies_id] = await connection.query('SELECT movie_id FROM movie_genres WHERE genre_id = ?', [id])
-
-      // Si no hay películas relacionadas, devolver un array vacío
-      if (movies_id.length === 0) return [];
-
-      const movieIds = movies_id.map(item => item.movie_id);
-
-      // Consultar las películas usando los IDs
-      const [movies] = await connection.query(
-        `SELECT title, year, director, duration, poster, rate, BIN_TO_UUID(id) AS uuid 
-        FROM movies 
-        WHERE id IN (${movieIds.map(() => '?').join(',')})`,
-        movieIds
-      );
-
-      return movies;
+      genreCondition = `WHERE LOWER(g.name) = ?`;
+      genreParams.push(genre.toLowerCase());
     }
-
-    const [movies] = await connection.query('SELECT title, year, director, duration, poster, rate, BIN_TO_UUID(id) AS uuid FROM movies ;')
-
-    return movies
+  
+    const [movies] = await connection.query(
+      `SELECT 
+        BIN_TO_UUID(m.id) AS id, 
+        m.title, 
+        m.year, 
+        m.director, 
+        m.duration, 
+        m.poster, 
+        m.rate, 
+        GROUP_CONCAT(g.name) AS genres
+       FROM movies m
+       LEFT JOIN movie_genres mg ON m.id = mg.movie_id
+       LEFT JOIN genre g ON mg.genre_id = g.id
+       ${genreCondition}
+       GROUP BY m.id, m.title, m.year, m.director, m.duration, m.poster, m.rate`,
+      genreParams
+    );
+  
+    return movies.map(movie => ({
+      ...movie,
+      genres: movie.genres ? movie.genres.split(",") : []
+    }));
   }
-
+  
   static async getById ({ id }) {
 
   }
