@@ -98,8 +98,13 @@ export class MovieModel {
           genreIds.push(existingGenre.id);
         } else {
           // Si no existe, crear el género y obtener su ID
-          const result = await connection.query('INSERT INTO genre (name) VALUES (?)', [g]);
-          genreIds.push(result.insertId);
+          try {
+            const result = await connection.query('INSERT INTO genre (name) VALUES (?)', [g]);
+            genreIds.push(result.insertId);
+          } catch (e) {
+            throw new Error(`Error creating genre`);
+            
+          }
         }
       }
   
@@ -110,28 +115,32 @@ export class MovieModel {
     const [[{ uuid }]] = await connection.query('SELECT UUID() AS uuid');
 
     //Insert movie into database
-    const resultMovie = await connection.query(
-      `INSERT INTO movies (id, title, year, director, duration, poster, rate) 
-      VALUES (UUID_TO_BIN("${uuid}"), ?, ?, ?, ?, ?, ?)`,
-      [title, year, director, duration, poster, rate]     
-    )
-
-    console.log('Movie Inserted:', resultMovie)
+    try {
+      await connection.query(
+        `INSERT INTO movies (id, title, year, director, duration, poster, rate) 
+        VALUES (UUID_TO_BIN("${uuid}"), ?, ?, ?, ?, ?, ?)`,
+        [title, year, director, duration, poster, rate]     
+      )
+    } catch (e) {
+      throw new Error('Error creating movie');
+    }
 
     //Get or create IDs to genres
     const genreIds = await getOrCreateGenreIds(genre);
 
     //Insert relations for the table movie_genre
-    const movieGenreQueries = genreIds.map((genreId) =>
-      connection.query(
-        `INSERT INTO movie_genres (movie_id, genre_id) VALUES (UUID_TO_BIN(?), ?)`,
-        [uuid, genreId]
-      )
-    );
+    try {
+      const movieGenreQueries = genreIds.map((genreId) =>
+        connection.query(
+          `INSERT INTO movie_genres (movie_id, genre_id) VALUES (UUID_TO_BIN(?), ?)`,
+          [uuid, genreId]
+        )
+      );
+    } catch (e) {
+      throw new Error('Error creating movie-genre relation');
+    }
 
     await Promise.all(movieGenreQueries);
-
-    console.log('Movie Genres Inserted:', genreIds);
 
     return { message: 'Movie created successfully!', movieId: uuid };
 
@@ -139,6 +148,18 @@ export class MovieModel {
 
   static async delete ({ id }) {
     
+    try {
+      const idMovie = await connection.query('SELECT * FROM movies WHERE id = UUID_TO_BIN(?)', [id]);
+      if (idMovie[0].length > 0) {
+        await connection.query('DELETE FROM movies WHERE id = UUID_TO_BIN(?)', [id]);
+        return { message: 'Movie deleted successfully!' };
+      }
+      return { message: 'Movie not Exist' };
+    } catch (error) {
+      return false;
+    }
+    
+      
   }
 
   static async update ({ id, input }) {
