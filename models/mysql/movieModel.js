@@ -1,6 +1,6 @@
 import mysql from 'mysql2/promise.js'
 
-const config = {
+const DEFAULT_CONFIG = {
     host: 'localhost',
     user: 'root',
     port: 3306,
@@ -8,7 +8,9 @@ const config = {
     database: 'moviesdb'
 }
 
-const connection = await  mysql.createConnection(config)
+const connectionString = process.env.DATABASE_URL ?? DEFAULT_CONFIG
+
+const connection = await  mysql.createConnection(connectionString)
 
 export class MovieModel {
   static async getAll({ genre }) {
@@ -122,18 +124,19 @@ export class MovieModel {
     const genreIds = await getGenreIds(genre);
 
     //Insert relations for the table movie_genre
+    const movieGenreQueries = genreIds.map((genreId) =>
+      connection.query(
+        `INSERT INTO movie_genres (movie_id, genre_id) VALUES (UUID_TO_BIN(?), ?)`,
+        [uuid, genreId]
+      )
+    );
     try {
-      const movieGenreQueries = genreIds.map((genreId) =>
-        connection.query(
-          `INSERT INTO movie_genres (movie_id, genre_id) VALUES (UUID_TO_BIN(?), ?)`,
-          [uuid, genreId]
-        )
-      );
+      await Promise.all(movieGenreQueries);
     } catch (e) {
       throw new Error('Error creating movie-genre relation');
     }
 
-    await Promise.all(movieGenreQueries);
+  
 
     return { message: 'Movie created successfully!', movieId: uuid };
 
