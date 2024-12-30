@@ -5,6 +5,9 @@
   "main": "app.js",
   "type": "module",
   "scripts": {
+    "start:mysql": "node --watch server-mysql.js",
+    "start:mongo": "node --watch server-mongo.js",
+    "start:local": "node --watch server-local.js",
     "dev": "nodemon app.js"
   },
   "keywords": [],

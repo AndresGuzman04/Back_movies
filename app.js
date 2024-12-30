@@ -1,19 +1,24 @@
 import express, { json } from 'express' 
 import {corsMiddleware} from './middlewares/cors.js'
-import { moviesRouter } from './routes/moviesRoutes.js'
+import { createMovieRouter } from './routes/moviesRoutes.js'
 
-const app = express()
 
-app.use(json())
+export const createApp = ({movieModel}) => {
+  const app = express()
 
-app.use(corsMiddleware())
+  app.use(json())
 
-app.disable('x-powered-by') // deshabilitar el header X-Powered-By: Express
+  app.use(corsMiddleware())
 
-app.use('/movies', moviesRouter)
+  app.disable('x-powered-by') // deshabilitar el header X-Powered-By: Express
 
-const PORT = process.env.PORT ?? 1234
+  app.use('/movies', createMovieRouter({movieModel})) // ruta para movies
 
-app.listen(PORT, () => {
-  console.log(`server listening on port http://localhost:${PORT}`)
-})
+  const PORT = process.env.PORT ?? 1234
+
+  app.listen(PORT, () => {
+    console.log(`server listening on port http://localhost:${PORT}`)
+  })
+}
+
+
