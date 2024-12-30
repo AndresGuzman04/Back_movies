@@ -82,36 +82,29 @@ export class MovieModel {
       genre
     } = input;
 
-    //Function for get or create genre and return IDs
-    const getOrCreateGenreIds = async (genres) => {
+    //Function for get and return IDs
+    const getGenreIds = async (genres) => {
       const genreIds = [];
       
       for (const g of genres) {
-        // Buscar el género
+        // Search genre
         const [[existingGenre]] = await connection.query(
           'SELECT id FROM genre WHERE LOWER(name) = ?',
           [g.toLowerCase()]
         );
   
         if (existingGenre) {
-          // Si existe, añadir su ID
+          // Exists, add ID
           genreIds.push(existingGenre.id);
         } else {
-          // Si no existe, crear el género y obtener su ID
-          try {
-            const result = await connection.query('INSERT INTO genre (name) VALUES (?)', [g]);
-            genreIds.push(result.insertId);
-          } catch (e) {
-            throw new Error(`Error creating genre`);
-            
-          }
+            throw new Error(`Error genre does not exists`);
         }
       }
   
       return genreIds;
     };
 
-    //Get new genre IDs
+    //Get new movie IDs
     const [[{ uuid }]] = await connection.query('SELECT UUID() AS uuid');
 
     //Insert movie into database
@@ -125,8 +118,8 @@ export class MovieModel {
       throw new Error('Error creating movie');
     }
 
-    //Get or create IDs to genres
-    const genreIds = await getOrCreateGenreIds(genre);
+    //Get IDs to genres
+    const genreIds = await getGenreIds(genre);
 
     //Insert relations for the table movie_genre
     try {
@@ -163,6 +156,84 @@ export class MovieModel {
   }
 
   static async update ({ id, input }) {
+
+    const {
+      title,
+      year,
+      director,
+      duration,
+      poster,
+      rate,
+      genre
+    } = input;
+
+    const updateMovieQuery = `
+    UPDATE movies
+    SET title = ?, year = ?, director = ?, duration = ?, poster = ?, rate = ?
+    WHERE id = UUID_TO_BIN(?)
+  `;
+
+  const getGenreIds = async (genres) => {
+    const genreIds = [];
     
+    for (const g of genres) {
+      // Search genre
+      const [[existingGenre]] = await connection.query(
+        'SELECT id FROM genre WHERE LOWER(name) = ?',
+        [g.toLowerCase()]
+      );
+
+      if (existingGenre) {
+        // Exists, add ID
+        genreIds.push(existingGenre.id);
+      } else {
+          throw new Error(`Error genre does not exists`);
+      }
+    }
+
+    return genreIds;
+  };
+
+
+    // Actualizar los datos de la película
+    try {
+      await connection.query(updateMovieQuery, [
+        title,
+        year,
+        director,
+        duration,
+        poster,
+        rate,
+        id,
+      ]);
+    } catch (error) {
+      return { status: 404, message: "Error updating movie" };
+    }
+
+    // Get new IDs genres
+    const genreIds = await getGenreIds(genre);
+
+    // Delete current relations 
+    await connection.query(
+      'DELETE FROM movie_genres WHERE movie_id = UUID_TO_BIN(?)',
+      [id]
+    );
+
+    // Insert new relations
+    const movieGenreQueries = genreIds.map((genreId) =>
+      connection.query(
+        `INSERT INTO movie_genres (movie_id, genre_id) VALUES (UUID_TO_BIN(?), ?)`,
+        [id, genreId]
+      )
+    );
+
+    try {
+      await Promise.all(movieGenreQueries);
+    } catch (error) {
+      return { status: 400, message: "Error updating movie genres" };
+    }
+    
+    return { message: 'Movie and genres updated successfully!' };
+
   }
 }
